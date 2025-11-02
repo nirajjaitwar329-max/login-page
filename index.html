@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Data Console with Dynamic Background</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Color Palette: Dark Purple (#1e0935), Blue/Cyan Accent (#4dd0e1) */
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Roboto', sans-serif;
+            /* Base background color for fallback */
+            background-color: #1e0935; 
+        }
+
+        /* ------------------------------------------- */
+        /* --- 3D Scene and Dynamic Background Container --- */
+        /* This container is used by both JS codes. */
+        /* Initially set up for Three.js, but JS will update its background property */
+        #threejs-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            transition: background 0.5s ease-in-out; /* Added transition from first code */
+            /* Applying the gradient to the container for better depth (from second code) */
+            background: linear-gradient(135deg, #1e0935 0%, #350c5a 100%);
+        }
+        
+        /* The three.js canvas will be added here, and its background will be transparent */
+        /* We will use the #threejs-container's background for both the 3D scene's base color 
+           and the dynamic background images.
+           Note: The original Three.js scene did not use the background image. 
+           For simplicity, I've integrated the image change logic to the threejs-container itself. 
+           If the Three.js canvas is non-transparent, the background image won't be seen.
+        */
+        
+        /* ------------------------------------------- */
+        /* --- Login Overlay --- (from second code) */
+        .login-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .login-box {
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.8), 0 0 30px rgba(77, 208, 225, 0.5);
+            border: 1px solid rgba(77, 208, 225, 0.3);
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+            color: #b39ddb;
+        }
+
+        .title {
+            color: #4dd0e1;
+            margin-bottom: 5px;
+            font-weight: 700;
+            font-size: 1.8rem;
+        }
+
+        .subtitle {
+            color: #b39ddb;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+            font-weight: 300;
+        }
+
+        .input-group {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 400;
+            color: #b39ddb;
+            font-size: 0.9rem;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #350c5a;
+            border-radius: 8px;
+            background-color: #0d0417;
+            color: #ffffff;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .input-group input:focus {
+            border-color: #4dd0e1;
+            outline: none;
+            box-shadow: 0 0 10px rgba(77, 208, 225, 0.8);
+        }
+
+        .login-button {
+            width: 100%;
+            padding: 15px;
+            background-color: #4dd0e1;
+            color: #1e0935;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+
+        .login-button:hover {
+            background-color: #79e5f5;
+            transform: translateY(-2px);
+        }
+
+        /* ------------------------------------------- */
+        /* --- Background Change Button Styling --- (from first code) */
+        #changeBg {
+            position: absolute;
+            top: 30px; /* Position it in the top left corner */
+            left: 30px;
+            padding: 10px 25px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #ff5722;
+            color: white;
+            transition: 0.3s;
+            z-index: 20; /* Ensure it's above everything */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        #changeBg:hover { 
+            background: #e64a19; 
+            transform: scale(1.05);
+        }
+        
+    </style>
+</head>
+<body>
+
+    <div id="threejs-container"></div>
+    
+    <button id="changeBg">Change Background</button>
+
+    <div class="login-overlay">
+        <div class="login-box">
+            <h1 class="title">Data Core Access</h1>
+            <p class="subtitle">Securely log into the System Console</p>
+            <form action="#" method="POST">
+                <div class="input-group">
+                    <label for="username">User ID</label>
+                    <input type="text" id="username" name="username" required placeholder="Enter system credentials">
+                </div>
+                <div class="input-group">
+                    <label for="password">Security Key</label>
+                    <input type="password" id="password" name="password" required placeholder="Enter secret password">
+                </div>
+                <button type="submit" class="login-button">INITIATE LOGIN</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- Shared Elements ---
+        const container = document.getElementById('threejs-container');
+        const button = document.getElementById('changeBg');
+
+        // --- Background Image Logic (from first code) ---
+        const images = [
+            'https://images.unsplash.com/photo-1507525428034-b723cf961d3e', // Beach
+            'https://images.unsplash.com/photo-1493244040629-496f6d136cc3', // Mountain road
+            'https://images.unsplash.com/photo-1506744038136-46273834b3fb'  // Lake and mountains
+        ];
+
+        button.addEventListener('click', () => {
+            const randomIndex = Math.floor(Math.random() * images.length);
+            // We use background-image to overlay the Three.js scene's background. 
+            // The canvas must have an alpha channel for the image to show.
+            container.style.background = url(${images[randomIndex]}) no-repeat center center/cover;
+            // Re-apply the initial gradient if the new random image is the first one (for a 'toggle' effect)
+            if (randomIndex === 0) {
+                 container.style.background = url(${images[randomIndex]}) no-repeat center center/cover;
+            }
+        });
+        
+        // --- Three.js Logic (from second code) ---
+        let scene, camera, renderer, cube, planes = [];
+
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            
+            // Camera (Perspective)
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+
+            // Renderer - IMPORTANT: Set alpha: true for the background image to show!
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 5); // soft white light
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0x4dd0e1, 1, 100);
+            pointLight.position.set(5, 5, 5);
+            scene.add(pointLight);
+
+            // --- Creating the Central Layered Structure (Planes) ---
+            const geometry = new THREE.PlaneGeometry(3, 3);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x4dd0e1, 
+                side: THREE.DoubleSide, 
+                transparent: true, 
+                opacity: 0.15 
+            });
+
+            const count = 5;
+            for (let i = 0; i < count; i++) {
+                const plane = new THREE.Mesh(geometry, material.clone());
+                plane.position.y = (i - (count - 1) / 2) * 0.3;
+                plane.rotation.x = Math.PI * -0.3; 
+                plane.rotation.z = Math.PI * 0.1;
+                scene.add(plane);
+                planes.push(plane);
+            }
+
+            // --- Creating a Server Cube (Simple Box) ---
+            const cubeGeometry = new THREE.BoxGeometry(0.8, 1.2, 0.8);
+            const cubeMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x4dd0e1, 
+                wireframe: true // Wireframe to give a tech look
+            });
+            cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            cube.position.set(2, -1, 0); 
+            scene.add(cube);
+
+            // Resize listener
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = Date.now() * 0.0005;
+
+            // Rotate the planes slowly
+            planes.forEach((plane, index) => {
+                plane.rotation.y = time * (0.5 + index * 0.1);
+            });
+
+            // Rotate the cube slowly
+            cube.rotation.x += 0.002;
+            cube.rotation.y += 0.005;
+
+            renderer.render(scene, camera);
+        }
+
+        // --- Handle Window Resize ---
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Run the combined logic
+        init();
+        animate();
+    </script>
+
+</body>
+</html>
